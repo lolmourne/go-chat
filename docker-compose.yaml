@@ -1,0 +1,11 @@
+version: '3'
+services:
+    postgres:
+        container_name: groupchat-pg
+        image: postgres
+        ports:
+            - 5432:5432
+        environment:
+            POSTGRES_USER: u123
+            POSTGRES_PASSWORD: u124
+            POSTGRES_DB: skilvul-groupchat
