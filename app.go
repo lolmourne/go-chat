@@ -28,7 +28,8 @@ func main() {
 	r.POST("/login", login)
 	r.PUT("/editprofile", changeProfile)
 	r.PUT("/editpassword", changePassword)
-	r.GET("/search", getOtherProfile)
+	// r.GET("/search", getOtherProfile)
+	r.GET("/id/:user_id", getOtherProfile)
 	r.PUT("/join", joinRoom)
 	r.POST("/createroom", createRoom)
 	r.Run()
@@ -210,14 +211,13 @@ func changePassword(c *gin.Context) {
 }
 
 func getOtherProfile(c *gin.Context) {
-	userID := c.Request.FormValue("user_id")
+	userID := c.Param("user_id")
+	// username := c.Request.FormValue("username")
 
 	query := `
 	SELECT
 		user_id,
 		username,
-		password,
-		salt,
 		created_at,
 		profile_pic
 	FROM
