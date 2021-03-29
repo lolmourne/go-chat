@@ -27,6 +27,10 @@ func main() {
 	r.POST("/register", register)
 	r.POST("/login", login)
 	r.PUT("/editprofile", changeProfile)
+	r.PUT("/editpassword", changePassword)
+	r.GET("/search", getOtherProfile)
+	r.PUT("/join", joinRoom)
+	r.POST("/createroom", createRoom)
 	r.Run()
 }
 
@@ -141,19 +145,20 @@ func login(c *gin.Context) {
 }
 
 func changeProfile(c *gin.Context) {
-	var userDB UserDB
 	username := c.Request.FormValue("username")
+	newUsername := c.Request.FormValue("newUsername")
 	newProfilePicture := c.Request.FormValue("profile_picture")
 
 	query := `
 	UPDATE
 		account
 	SET
-		profile_pic = $1
+		username = $1
+		profile_pic = $2
 	WHERE
-		username = $2
+		username = $3
 	`
-	_, err := db.Exec(query, newProfilePicture, username)
+	_, err := db.Exec(query, newUsername, newProfilePicture, username)
 	if err != nil {
 		c.JSON(400, StandardAPIResponse{
 			Err: err.Error(),
@@ -161,15 +166,162 @@ func changeProfile(c *gin.Context) {
 		return
 	}
 
+	c.JSON(200, StandardAPIResponse{
+		Err:     "null",
+		Message: "Success change profile!",
+	})
+}
+
+// Want to add a feature to block if new password
+// is same with the old password,
+// but it means the new salt is also same with
+// the old one, isn't it?
+func changePassword(c *gin.Context) {
+	username := c.Request.FormValue("username")
+	newPassword := c.Request.FormValue("new_password")
+
+	salt := RandStringBytes(32)
+	newPassword += salt
+	h := sha256.New()
+	h.Write([]byte(newPassword))
+	newPassword = fmt.Sprintf("%x", h.Sum(nil))
+
+	queryUpdate := `
+	UPDATE
+		account
+	SET
+		password = $1
+	WHERE
+		username = $2	
+	`
+
+	_, err := db.Exec(queryUpdate, newPassword, username)
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(201, StandardAPIResponse{
+		Err:     "null",
+		Message: "Success change password",
+	})
+}
+
+func getOtherProfile(c *gin.Context) {
+	userID := c.Request.FormValue("user_id")
+
+	query := `
+	SELECT
+		user_id,
+		username,
+		password,
+		salt,
+		created_at,
+		profile_pic
+	FROM
+		account
+	WHERE
+		user_id = $1
+	`
+
+	var user UserDB
+	err := db.Get(&user, query, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(400, StandardAPIResponse{
+				Err: "Not authorized",
+			})
+			return
+		}
+
+		c.JSON(400, StandardAPIResponse{
+			Err: err.Error(),
+		})
+		return
+	}
+
 	resp := User{
-		Username:   userDB.UserName.String,
-		ProfilePic: userDB.ProfilePic.String,
-		CreatedAt:  userDB.CreatedAt.UnixNano(),
+		Username:   user.UserName.String,
+		ProfilePic: user.ProfilePic.String,
+		CreatedAt:  user.CreatedAt.UnixNano(),
 	}
 
 	c.JSON(200, StandardAPIResponse{
 		Err:  "null",
 		Data: resp,
+	})
+}
+
+func joinRoom(c *gin.Context) {
+	userID := c.Request.FormValue("user_id")
+	roomID := c.Request.FormValue("room_id")
+
+	query := `
+	INSERT INTO
+		room_participant
+		(
+			room_id, 
+			user_id
+		)
+	VALUES
+		(
+			$1,
+			$2
+		)
+	`
+
+	_, err := db.Exec(query, roomID, userID)
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, StandardAPIResponse{
+		Err:     "null",
+		Message: "Success join the group",
+	})
+}
+
+func createRoom(c *gin.Context) {
+	roomName := c.Request.FormValue("room_name")
+	adminID := c.Request.FormValue("admin_id")
+	categoryID := c.Request.FormValue("category_id")
+
+	query := `
+	INSERT INTO
+		room
+		(
+			name,
+			admin_user_id,
+			description,
+			category_id,
+			created_at
+		)
+		VALUES
+		(
+			$1,
+			$2,
+			$3,
+			$4,
+			$5
+		)
+	`
+
+	_, err := db.Exec(query, roomName, adminID, "", categoryID, time.Now())
+	if err != nil {
+		c.JSON(400, StandardAPIResponse{
+			Err: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(201, StandardAPIResponse{
+		Err:     "null",
+		Message: "Room created!",
 	})
 }
 
@@ -205,5 +357,17 @@ type UserDB struct {
 }
 
 type Room struct {
-	RoomID int64 `json:"room_id"`
+	RoomName    string `json:"name"`
+	CategoryID  int64  `json:"category_id"`
+	Description string `json:"description"`
+	CreatedAt   int64  `json:"created_at"`
+}
+
+type RoomDB struct {
+	RoomID      sql.NullInt64  `db:"room_id"`
+	Name        sql.NullString `db:"name"`
+	AdminID     sql.NullInt64  `db:"admin_user_id"`
+	Description sql.NullString `db:"description"`
+	CategoryID  sql.NullString `db:"category_id"`
+	CreatedAt   time.Time      `db:"created_at"`
 }
