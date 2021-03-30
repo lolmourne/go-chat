@@ -173,6 +173,10 @@ func changeProfile(c *gin.Context) {
 	})
 }
 
+func updateRoom(c *gin.Context) {
+	c.String(200, "%v", "test")
+}
+
 // Want to add a feature to block if new password
 // is same with the old password,
 // but it means the new salt is also same with
