@@ -146,7 +146,7 @@ func login(c *gin.Context) {
 }
 
 func changeProfile(c *gin.Context) {
-	username := c.Request.FormValue("username")
+	username := c.Request.FormValue("user")
 	newUsername := c.Request.FormValue("newUsername")
 	newProfilePicture := c.Request.FormValue("profile_picture")
 
